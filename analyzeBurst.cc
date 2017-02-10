@@ -140,7 +140,6 @@ int main(int argv, char** argc) {
 
 
   //and ... write to file!
-  f_output.cd();
   f_output.Write();
   f_output.Close();
 
