@@ -135,7 +135,7 @@ int main(int argv, char** argc) {
 		   wvfm.ChannelNumber(),
 		   wvfm.TimeStamp() - trig_time,
 		   MAX_TICK,
-		   (wvfm.TimeStamp() - trig_time) - ((0.5*(float)(MAX_TICK))-3200.));
+		   (wvfm.TimeStamp() - trig_time) - ((0.5*(float)(MAX_TICK))-1600.));
       }
     }
     ++ev_counter;
