@@ -92,53 +92,52 @@ int main(int argv, char** argc) {
     
     if(MAX_TICK<WINDOW_SIZE || (rawdigit_handle->at(0).ADCs().size()-MAX_TICK)<WINDOW_SIZE){
       cout << "ERROR: MAX_TICK " << MAX_TICK << " too close to edge." << endl;
-      return -1;
     }
-
-    i_ch=0;
-    for (auto const& wvfm : *rawdigit_handle){
-
-      auto i_max = std::max_element(wvfm.ADCs().begin()+(MAX_TICK-WINDOW_SIZE),
+    else{
+      i_ch=0;
+      for (auto const& wvfm : *rawdigit_handle){
+	
+	auto i_max = std::max_element(wvfm.ADCs().begin()+(MAX_TICK-WINDOW_SIZE),
+				      wvfm.ADCs().begin()+(MAX_TICK+WINDOW_SIZE));
+	auto i_min = std::min_element(wvfm.ADCs().begin()+(MAX_TICK-WINDOW_SIZE),
 				    wvfm.ADCs().begin()+(MAX_TICK+WINDOW_SIZE));
-      auto i_min = std::min_element(wvfm.ADCs().begin()+(MAX_TICK-WINDOW_SIZE),
-				    wvfm.ADCs().begin()+(MAX_TICK+WINDOW_SIZE));
-
-      size_t i_rise = std::distance(wvfm.ADCs().begin(),i_max);
-      float thresh = 0.1 * ((float)(*i_max) - pedestal_vec[i_ch]);
-      while((wvfm.ADCs()[i_rise]-pedestal_vec[i_ch])>thresh && i_rise>MAX_TICK-WINDOW_SIZE)	--i_rise;
-
-      size_t i_fall = std::distance(wvfm.ADCs().begin(),i_max);
-      while((wvfm.ADCs()[i_fall]-pedestal_vec[i_ch])>thresh && i_fall<MAX_TICK+WINDOW_SIZE) ++i_fall;
-      
-      ntp.Fill(ev.eventAuxiliary().run(),
-	       ev.eventAuxiliary().event(),
-	       ev_counter,
-	       wvfm.Channel(),
-	       pedestal_vec[i_ch],
-	       *i_max,std::distance(wvfm.ADCs().begin(),i_max),
-	       std::distance(wvfm.ADCs().begin(),i_max)-i_rise,i_fall-std::distance(wvfm.ADCs().begin(),i_max),
-	       *i_min,std::distance(wvfm.ADCs().begin(),i_min),
-	       MAX_TICK);
-      ++i_ch;
-    }
-
-    auto const& opdet_handle = ev.getValidHandle<vector<raw::OpDetWaveform>>(opdet_tag);
-    auto const& trig_handle = ev.getValidHandle<vector<raw::Trigger>>(daq_tag);
-
-    auto const& opdet_vec(*opdet_handle);
-    auto trig_time = trig_handle->at(0).TriggerTime();
-
-
-    for(auto const& wvfm : opdet_vec){
-      nt_op.Fill(ev.eventAuxiliary().run(),
+	
+	size_t i_rise = std::distance(wvfm.ADCs().begin(),i_max);
+	float thresh = 0.1 * ((float)(*i_max) - pedestal_vec[i_ch]);
+	while((wvfm.ADCs()[i_rise]-pedestal_vec[i_ch])>thresh && i_rise>MAX_TICK-WINDOW_SIZE)	--i_rise;
+	
+	size_t i_fall = std::distance(wvfm.ADCs().begin(),i_max);
+	while((wvfm.ADCs()[i_fall]-pedestal_vec[i_ch])>thresh && i_fall<MAX_TICK+WINDOW_SIZE) ++i_fall;
+	
+	ntp.Fill(ev.eventAuxiliary().run(),
 		 ev.eventAuxiliary().event(),
 		 ev_counter,
-		 wvfm.ChannelNumber(),
-		 wvfm.TimeStamp() - trig_time,
-		 MAX_TICK,
-		 (wvfm.TimeStamp() - trig_time) - ((0.5*(float)(MAX_TICK))-3200.));
+		 wvfm.Channel(),
+		 pedestal_vec[i_ch],
+		 *i_max,std::distance(wvfm.ADCs().begin(),i_max),
+		 std::distance(wvfm.ADCs().begin(),i_max)-i_rise,i_fall-std::distance(wvfm.ADCs().begin(),i_max),
+		 *i_min,std::distance(wvfm.ADCs().begin(),i_min),
+		 MAX_TICK);
+	++i_ch;
+      }
+      
+      auto const& opdet_handle = ev.getValidHandle<vector<raw::OpDetWaveform>>(opdet_tag);
+      auto const& trig_handle = ev.getValidHandle<vector<raw::Trigger>>(daq_tag);
+      
+      auto const& opdet_vec(*opdet_handle);
+      auto trig_time = trig_handle->at(0).TriggerTime();
+      
+      
+      for(auto const& wvfm : opdet_vec){
+	nt_op.Fill(ev.eventAuxiliary().run(),
+		   ev.eventAuxiliary().event(),
+		   ev_counter,
+		   wvfm.ChannelNumber(),
+		   wvfm.TimeStamp() - trig_time,
+		   MAX_TICK,
+		   (wvfm.TimeStamp() - trig_time) - ((0.5*(float)(MAX_TICK))-3200.));
+      }
     }
-    
     ++ev_counter;
     
     auto t_end = high_resolution_clock::now();
