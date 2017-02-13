@@ -28,6 +28,8 @@
 
 //"larsoft" object includes
 #include "lardataobj/RawData/RawDigit.h"
+#include "lardataobj/RawData/OpDetWaveform.h"
+#include "lardataobj/RawData/TriggerData.h"
 
 //our own includes!
 //#include "hist_utilities.h"
@@ -47,6 +49,7 @@ int main(int argv, char** argc) {
   
   TFile f_output(argc[2],"RECREATE");
   TNtuple ntp("ntp","Burst Ntuple","run:ev:i_ev:ch:ped:max:max_tick:risetime:falltime:min:min_tick:ref_tick");
+  TNtuple nt_op("nt_op","OpDet Burst Ntuple","run:ev:i_ev:ch:time_us:ref_tick:rel_time");
   
   vector<string> filenames;
 
@@ -55,7 +58,8 @@ int main(int argv, char** argc) {
   ifstream input_file(argc[1]);
   while(getline(input_file,file_name))
     filenames.push_back(file_name);
-  InputTag rawdigit_tag { "daq" };
+  InputTag daq_tag { "daq" };
+  InputTag opdet_tag { "pmtreadout","OpdetCosmicHighGain" };
   const size_t WINDOW_SIZE = 30;
 
   size_t ev_counter = 0;
@@ -68,23 +72,16 @@ int main(int argv, char** argc) {
 	 << "Run " << ev.eventAuxiliary().run() << ", "
 	 << "Event " << ev.eventAuxiliary().event() << endl;
 
-    auto const& rawdigit_handle = ev.getValidHandle< vector<raw::RawDigit> >(rawdigit_tag);
+    auto const& rawdigit_handle = ev.getValidHandle< vector<raw::RawDigit> >(daq_tag);
     vector<float> pedestal_vec(rawdigit_handle->size());
     vector<short> max_ticks;
     size_t i_ch=0;
     for (auto const& wvfm : *rawdigit_handle){
 
-      /*
-      cout << "\tChannel : " << wvfm.Channel();
-      auto i_max = std::max_element(wvfm.ADCs().begin(),wvfm.ADCs().end());
-      cout << "\t max is " << *i_max << " at " << std::distance(wvfm.ADCs().begin(),i_max) << endl;
-      */
-
       auto i_max = std::max_element(wvfm.ADCs().begin(),wvfm.ADCs().end());
       max_ticks.push_back(std::distance(wvfm.ADCs().begin(),i_max));
 
       pedestal_vec[i_ch] = std::accumulate(wvfm.ADCs().begin(),wvfm.ADCs().end(),0.0) / (float)(wvfm.ADCs().size());
-      //cout << "\tPedestal = " << pedestal_vec[i_ch] << endl;
       ++i_ch;
     }
 
@@ -106,12 +103,6 @@ int main(int argv, char** argc) {
       auto i_min = std::min_element(wvfm.ADCs().begin()+(MAX_TICK-WINDOW_SIZE),
 				    wvfm.ADCs().begin()+(MAX_TICK+WINDOW_SIZE));
 
-      /*
-      cout << "\tChannel " << wvfm.Channel() << ":" << endl;
-      cout << "\t\t max is " << (*i_max)-pedestal_vec[i_ch] << " at " << std::distance(wvfm.ADCs().begin(),i_max) << endl;
-      cout << "\t\t min is " << (*i_min)-pedestal_vec[i_ch] << " at " << std::distance(wvfm.ADCs().begin(),i_min) << endl;
-      */
-
       size_t i_rise = std::distance(wvfm.ADCs().begin(),i_max);
       float thresh = 0.1 * ((float)(*i_max) - pedestal_vec[i_ch]);
       while((wvfm.ADCs()[i_rise]-pedestal_vec[i_ch])>thresh && i_rise>MAX_TICK-WINDOW_SIZE)	--i_rise;
@@ -129,6 +120,23 @@ int main(int argv, char** argc) {
 	       *i_min,std::distance(wvfm.ADCs().begin(),i_min),
 	       MAX_TICK);
       ++i_ch;
+    }
+
+    auto const& opdet_handle = ev.getValidHandle<vector<raw::OpDetWaveform>>(opdet_tag);
+    auto const& trig_handle = ev.getValidHandle<vector<raw::Trigger>>(daq_tag);
+
+    auto const& opdet_vec(*opdet_handle);
+    auto trig_time = trig_handle->at(0).TriggerTime();
+
+
+    for(auto const& wvfm : opdet_vec){
+      nt_op.Fill(ev.eventAuxiliary().run(),
+		 ev.eventAuxiliary().event(),
+		 ev_counter,
+		 wvfm.ChannelNumber(),
+		 wvfm.TimeStamp() - trig_time,
+		 MAX_TICK,
+		 (wvfm.TimeStamp() - trig_time) - ((0.5*(float)(MAX_TICK))-3200.));
     }
     
     ++ev_counter;
